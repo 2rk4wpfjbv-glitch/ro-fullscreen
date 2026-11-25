@@ -1,0 +1,43 @@
+name: Build RO Fullscreen IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.event.repository.private == false
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Xcode project
+        run: unzip -q ROFullscreen-xcode.zip -d project
+      - name: Select Xcode and verify iOS SDK
+        run: python3 project/scripts/select_xcode.py
+      - name: Check viewport behavior
+        working-directory: project
+        run: node tests/viewport.test.cjs
+      - name: Archive and verify device IPA
+        run: bash project/scripts/build.sh
+      - name: Upload device IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ROFullscreen-IPA
+          path: project/dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Launch on available Duo simulator
+        working-directory: project
+        run: python3 scripts/simulator_smoke.py
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ROFullscreen-checks
+          path: |
+            project/build/*.log
+            project/dist/simulator-status.txt
+            project/dist/duo-launch.png
+          retention-days: 7
